@@ -8,9 +8,6 @@ Created on Sun Mar  1 10:39:30 2020
 
 # importing library
 import csv
-import os
-import argparse
-import matplotlib.pyplot as plt
 from itertools import islice
 
 # Sliding window
