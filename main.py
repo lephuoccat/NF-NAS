@@ -77,12 +77,18 @@ for i in range(args.num_iteration):
     
     # extract latent features from trained network
     phi = []
-    for _, (data) in enumerate(trainloader):
+    for batch_idx, (data) in enumerate(trainloader):
         features = cnn.flow(data).cpu().detach().numpy()
-        phi.append(features[0,2])
+        
+        # add the first 2 features in the 1st trunk
+        if batch_idx == 0:
+            for i in range(len(features[0]) - 1):
+                phi.append(features[0,i])
+        # add the last features (predicting y) in every trunk
+        phi.append(features[0,-1])
     
     # train alpha parameter with RLS
-    [_,alpha,_,_,_] = levinson(phi, nlags=2)
+    [_,alpha,_,_,_] = levinson(phi, nlags=args.window_size-1)
     alpha1 = alpha[0]
     alpha2 = alpha[1]
     alpha1_list.append(alpha1)
