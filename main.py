@@ -13,6 +13,7 @@ import numpy as np
 from scipy.optimize import fsolve
 from statsmodels.tsa.stattools import levinson_durbin as levinson
 from load_data import window, LoadData
+from network_structure import NF, fit
 
 import torch
 import torchvision
@@ -35,7 +36,7 @@ if (torch.cuda.is_available() == 'True'):
 else:
     device = 'cpu'
     
-
+# ----------------------------------------------
 # Load data
 filename = "daily-min-temperatures.csv"
 rows = LoadData(filename)
@@ -45,6 +46,7 @@ data = np.asarray(rows)
 temp = data[:,1]
 sliding_data = window(temp, args.window_size)
 
+# create array from sliding trunk of data
 train_data = []
 for value in sliding_data:  
     train_data = np.append(train_data, value)
@@ -54,6 +56,71 @@ train_data = train_data.astype(float)
 trainloader = DataLoader(train_data, batch_size=args.batch_size_train, shuffle=False)
 
 
+# ----------------------------------------------
+# main code
+cnn = NF(args.window_size, args.num_flow)
+print(cnn)
+
+alpha1 = 1
+alpha2 = 1
+error_list = []
+alpha1_list = []
+alpha2_list = []
+
+for i in range(args.num_iteration):
+    print('Iteration: %d' % i)
+    print('alpha 1: %f' % alpha1)
+    print('alpha 2: %f' % alpha2)
+    
+    fit(cnn, trainloader, alpha1, alpha2, args.num_epoch, args.num_flow, error_list)
+    
+    phi = []
+    for _, (data) in enumerate(trainloader):
+        features = cnn.flow(data).cpu().detach().numpy()
+        phi.append(features[0,2])
+    
+    [a1,alpha,a2,a3,a4] = levinson(phi, nlags=2)
+    alpha1 = alpha[0]
+    alpha2 = alpha[1]
+    alpha1_list.append(alpha1)
+    alpha2_list.append(alpha2)
+    
+    print('\n')
+
+
+
+
+
+
+
+
+
+#------------------------------------
+# plot the loss and alpha parameters
+t = np.arange(len(error_list))
+
+# loss
+plt.figure(figsize=[14,10])
+plt.plot(t, error_list, 'r')
+plt.title('MSE Loss')
+plt.xlabel('number of epochs')
+plt.ylabel('loss')
+#plt.axis([0, 19, -5, 75])
+plt.xticks(np.arange(0, 20, step=1))
+plt.grid(True)
+plt.show()
+
+# alpha parameters
+plt.figure(figsize=[14,10])
+plt.plot(t, alpha1_list, 'bs-', t, alpha2_list, 'g^-')
+plt.title('\N{GREEK SMALL LETTER ALPHA} parameters')
+plt.xlabel('number of epochs')
+plt.ylabel('\N{GREEK SMALL LETTER ALPHA}')
+plt.legend(['\N{GREEK SMALL LETTER ALPHA}\N{SUBSCRIPT ONE}',
+            '\N{GREEK SMALL LETTER ALPHA}\N{SUBSCRIPT TWO}'])
+plt.xticks(np.arange(0, 20, step=1))
+plt.grid(True)
+plt.show()
 
 
 

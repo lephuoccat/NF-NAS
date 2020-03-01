@@ -213,7 +213,7 @@ def fit(model, train_loader):
             
             
             # define the target for loss in y domain
-            target = np.array([previous_y1, previous_y2, predict_y3.detach().numpy()])
+            target = np.array([[previous_y1, previous_y2, predict_y3.detach().numpy()]])
             target = Variable(torch.from_numpy(target).float())
 #            target = torch.cat((previous_y1.unsqueeze(0), previous_y2.unsqueeze(0), predict_y3.unsqueeze(0)), dim=0)
             
