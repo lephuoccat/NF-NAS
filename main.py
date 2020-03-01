@@ -72,21 +72,23 @@ for i in range(args.num_iteration):
     print('alpha 1: %f' % alpha1)
     print('alpha 2: %f' % alpha2)
     
+    # train network structure
     fit(cnn, trainloader, alpha1, alpha2, args.num_epoch, args.num_flow, error_list)
     
+    # extract latent features from trained network
     phi = []
     for _, (data) in enumerate(trainloader):
         features = cnn.flow(data).cpu().detach().numpy()
         phi.append(features[0,2])
     
-    [a1,alpha,a2,a3,a4] = levinson(phi, nlags=2)
+    # train alpha parameter with RLS
+    [_,alpha,_,_,_] = levinson(phi, nlags=2)
     alpha1 = alpha[0]
     alpha2 = alpha[1]
     alpha1_list.append(alpha1)
     alpha2_list.append(alpha2)
     
     print('\n')
-
 
 
 

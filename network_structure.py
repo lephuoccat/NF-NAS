@@ -119,7 +119,9 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
             reconstruct_target = torch.cat((y1.unsqueeze(0), y2.unsqueeze(0), predict_y3.unsqueeze(0)), dim=0)
             predict_x = model.reconstruct(reconstruct_target, num_layer)
             # MSE loss from prediction in x-domain
-            x_loss = error(predict_x[0, 2], inputs[2])
+            # only consider the loss of the last value 
+            # (the "future" x, but not the "past" x)
+            x_loss = error(predict_x[0, -1], inputs[-1])
             
             
             # Target for y-domain
@@ -141,13 +143,11 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
             # Total error for prediction in x-domain
             total_error += x_loss.detach().numpy()
             
-    print('predict x:')
+    print('prediction of last x:')
     print(predict_x.detach().numpy())
     print('actual x:')
     print(inputs.detach().numpy())
-    print('The last y1: %f' % y1)
-    print('The last y2: %f' % y2)
-    print('The last y3: %f' % y3)
+
     ave_error = total_error/(EPOCHS * (batch_idx+3))
     error_list.append(ave_error)
     print('The last-batch MSE loss: {:.9f}'.format(float(loss.detach().numpy())))
