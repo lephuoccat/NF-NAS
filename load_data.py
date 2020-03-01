@@ -45,4 +45,4 @@ def LoadData(filename):
     
     # printing the field names 
     print('Field names: ' + ', '.join(field for field in fields)) 
-    return row
+    return rows
