@@ -9,11 +9,14 @@ import numpy as np
 from scipy.optimize import fsolve
 
 import torch
-import torchvision
 from torch import nn
 from torch.autograd import Variable
 
-
+if (torch.cuda.is_available() == True):
+    device = 'cuda'
+else:
+    device = 'cpu'
+    
 # NF network structure based on PlannarFlow
 class PlanarFlow(nn.Module):
     def __init__(self, d=3, init_sigma=0.01):
@@ -45,8 +48,8 @@ class PlanarFlow(nn.Module):
         f_z = z + u_hat*torch.tanh(arg)
 
         # update log prob.      
-        psi = self.w * (1-torch.tanh(arg)**2)
-        sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + (1 + psi @ u_hat.t()).abs().squeeze().log()
+        # psi = self.w * (1-torch.tanh(arg)**2)
+        # sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + (1 + psi @ u_hat.t()).abs().squeeze().log()
              
         return f_z
 
@@ -67,10 +70,10 @@ class NF(nn.Module):
         for i in range(num_layer-1, -1, -1):
             # parameter from NF
             U_tensor = self.flow[i].u
-            Y = Y_tensor.detach().numpy()
-            u = self.flow[i].u.detach().numpy()
-            w = self.flow[i].w.detach().numpy()
-            b = self.flow[i].b.detach().numpy()
+            Y = Y_tensor.cpu().detach().numpy()
+            u = self.flow[i].u.cpu().detach().numpy()
+            w = self.flow[i].w.cpu().detach().numpy()
+            b = self.flow[i].b.cpu().detach().numpy()
             
             # define equation
             # y = x + theta * tanh(x)
@@ -103,6 +106,7 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
         previous_y2 = 0
         for batch_idx, (inputs) in enumerate(train_loader):  
             # Pass data (x-domain) into model
+            inputs = inputs.to(device)
             optimizer.zero_grad()
             output = model(inputs)
             
@@ -125,8 +129,8 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
             
             
             # Target for y-domain
-            target = np.array([[previous_y1, previous_y2, predict_y3.detach().numpy()]])
-            target = Variable(torch.from_numpy(target).float())
+            target = np.array([[previous_y1, previous_y2, predict_y3.cpu().detach().numpy()]])
+            target = Variable(torch.from_numpy(target).float()).to(device)
             # MSE loss from prediction in y-domain
             y_loss = error(output, target)
             
@@ -137,18 +141,18 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
             optimizer.step()
             
             # update previous y2 & y3
-            previous_y1 = y2.detach().numpy()
-            previous_y2 = y3.detach().numpy()
+            previous_y1 = y2.cpu().detach().numpy()
+            previous_y2 = y3.cpu().detach().numpy()
             
             # Total error for prediction in x-domain
-            total_error += x_loss.detach().numpy()
+            total_error += x_loss.cpu().detach().numpy()
             
     print('prediction of last x:')
-    print(predict_x.detach().numpy())
+    print(predict_x.cpu().detach().numpy())
     print('actual x:')
-    print(inputs.detach().numpy())
+    print(inputs.cpu().detach().numpy())
 
     ave_error = total_error/(EPOCHS * (batch_idx+3))
     error_list.append(ave_error)
-    print('The last-batch MSE loss: {:.9f}'.format(float(loss.detach().numpy())))
+    print('The last-batch MSE loss: {:.9f}'.format(float(loss.cpu().detach().numpy())))
     print('Average MSE loss: {:.9f}'.format(ave_error))

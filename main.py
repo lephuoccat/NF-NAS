@@ -16,7 +16,7 @@ from load_data import window, LoadData
 from network_structure import NF, fit
 
 import torch
-import torchvision
+# import torchvision
 from torch import nn
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
@@ -31,11 +31,11 @@ parser.add_argument('--num-flow', default=10, type=int, help='number of flows')
 parser.add_argument('--window-size', default=3, type=int, help='sliding window size for time series data')
 args = parser.parse_args()
 
-if (torch.cuda.is_available() == 'True'):
+if (torch.cuda.is_available() == False):
     device = 'cuda'
 else:
     device = 'cpu'
-    
+
 # ----------------------------------------------
 # Load data
 filename = "daily-min-temperatures.csv"
@@ -59,6 +59,7 @@ trainloader = DataLoader(train_data, batch_size=args.batch_size_train, shuffle=F
 # ----------------------------------------------
 # main code
 cnn = NF(args.window_size, args.num_flow)
+cnn = cnn.to(device)
 print(cnn)
 
 alpha1 = 1
@@ -78,6 +79,7 @@ for i in range(args.num_iteration):
     # extract latent features from trained network
     phi = []
     for batch_idx, (data) in enumerate(trainloader):
+        data = data.to(device)
         features = cnn.flow(data).cpu().detach().numpy()
         
         # add the first 2 features in the 1st trunk
