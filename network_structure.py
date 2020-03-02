@@ -31,12 +31,13 @@ class PlanarFlow(nn.Module):
         self.b = nn.Parameter(torch.randn(1).fill_(0))
        
        
-    def forward(self, x, normalize_u=True):  
-        if isinstance(x, tuple):
-            z, sum_log_abs_det_jacobians = x
-        else:
-            z, sum_log_abs_det_jacobians = x, 0
-       
+    def forward(self, x, normalize_u=True): 
+#        if isinstance(x, tuple):
+#            z, sum_log_abs_det_jacobians = x
+#        else:
+#            z, sum_log_abs_det_jacobians = x, 0
+        z = x
+        
         # normalize
 #        wtu = (self.w @ self.u.t()).squeeze()
 #        m_wtu = - 1 + torch.log1p(wtu.exp())
