@@ -31,7 +31,7 @@ parser.add_argument('--num-flow', default=10, type=int, help='number of flows')
 parser.add_argument('--window-size', default=3, type=int, help='sliding window size for time series data')
 args = parser.parse_args()
 
-if (torch.cuda.is_available() == False):
+if (torch.cuda.is_available() == True):
     device = 'cuda'
 else:
     device = 'cpu'
