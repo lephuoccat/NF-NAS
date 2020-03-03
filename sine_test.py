@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar  3 16:45:03 2020
+
+@author: Cat Le
+"""
+
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -38,12 +46,12 @@ else:
 
 # ----------------------------------------------
 # Load data
-filename = "daily-min-temperatures.csv"
-rows = LoadData(filename)
+t = np.linspace(0,10*np.pi,4000)
+noise = np.random.normal(0, 2, 4000)
+sine_signal = 10 * np.sin(t)
+temp = sine_signal + noise
 
-# Generate sliding data as a trunk
-data = np.asarray(rows)
-temp = data[:,1]
+
 # divide data into train and test sets
 divider = np.floor(len(temp) * 0.9).astype(int)
 temp_train = temp[:divider]
