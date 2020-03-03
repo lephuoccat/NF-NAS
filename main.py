@@ -26,12 +26,12 @@ parser = argparse.ArgumentParser(description='GWR CIFAR10 Training')
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
 parser.add_argument('--batch-size-train', default=3, type=int, help='batch size train')
 parser.add_argument('--num-iteration', default=20, type=int, help='iteration to train NAS')
-parser.add_argument('--num-epoch', default=1, type=int, help='number of epochs')
+parser.add_argument('--num-epoch', default=2, type=int, help='number of epochs')
 parser.add_argument('--num-flow', default=10, type=int, help='number of flows')
 parser.add_argument('--window-size', default=3, type=int, help='sliding window size for time series data')
 args = parser.parse_args()
 
-if (torch.cuda.is_available() == True):
+if (torch.cuda.is_available() == False):
     device = 'cuda'
 else:
     device = 'cpu'
@@ -44,37 +44,52 @@ rows = LoadData(filename)
 # Generate sliding data as a trunk
 data = np.asarray(rows)
 temp = data[:,1]
-sliding_data = window(temp, args.window_size)
+# divide data into train and test sets
+divider = np.floor(len(temp) * 0.9).astype(int)
+temp_train = temp[:divider]
+temp_test = temp[divider:]
+
+sliding_data_train = window(temp_train, args.window_size)
+sliding_data_test = window(temp_test, args.window_size)
 
 # create array from sliding trunk of data
 train_data = []
-for value in sliding_data:  
+for value in sliding_data_train:  
     train_data = np.append(train_data, value)
+
+test_data = []
+for value in sliding_data_test:  
+    test_data = np.append(test_data, value)
 
 # dataloader for neural network training
 train_data = train_data.astype(float)
 trainloader = DataLoader(train_data, batch_size=args.batch_size_train, shuffle=False)
 
+test_data = test_data.astype(float)
+testloader = DataLoader(test_data, batch_size=args.batch_size_train, shuffle=False)
 
 # ----------------------------------------------
 # main code
+# initialize the network structure
 cnn = NF(args.window_size, args.num_flow)
 cnn = cnn.to(device)
 print(cnn)
 
 alpha1 = 1
 alpha2 = 1
-error_list = []
+error_train = []
+error_test = []
 alpha1_list = []
 alpha2_list = []
 
+# train and test
 for i in range(args.num_iteration):
     print('Iteration: %d' % i)
     print('alpha 1: %f' % alpha1)
     print('alpha 2: %f' % alpha2)
     
     # train network structure
-    fit(cnn, trainloader, alpha1, alpha2, args.num_epoch, args.num_flow, error_list)
+    fit(cnn, trainloader, alpha1, alpha2, args.num_epoch, args.num_flow, error_train)
     
     # extract latent features from trained network
     phi = []
@@ -96,7 +111,36 @@ for i in range(args.num_iteration):
     alpha1_list.append(alpha1)
     alpha2_list.append(alpha2)
     
+    
+    
+    # test
+    MSE_test = 0
+    for batch_idx, (data) in enumerate(testloader):
+        # pass test data into trained network
+        data = data.to(device)
+        features = cnn.flow(data)
+        
+        # calculate predicted y3
+        y1 = features[0,0]
+        y2 = features[0,1]
+        y_test = alpha1 * y1 + alpha2 * y2
+        reconstruct_y = torch.cat((y1.unsqueeze(0), y2.unsqueeze(0), y_test.unsqueeze(0)), dim=0)
+        
+        # pull predicted x3 from y3
+        reconstruct_x = cnn.reconstruct(reconstruct_y, args.num_flow)
+    
+        # MSE loss
+        x = data.cpu().detach().numpy()[-1]
+        x_test = reconstruct_x.cpu().detach().numpy()[0,-1]
+
+        MSE_test += (x_test - x)**2
+    
+    MSE_test = MSE_test/(batch_idx+3)
+    print('MSE test: %f' % MSE_test)
+    error_test.append(MSE_test)
     print('\n')
+
+
 
 
 
@@ -107,11 +151,12 @@ for i in range(args.num_iteration):
 
 #------------------------------------
 # plot the loss and alpha parameters
-t = np.arange(len(error_list))
+t = np.arange(len(error_train))
 
 # loss
 plt.figure(figsize=[14,10])
-plt.plot(t, error_list, 'r')
+plt.plot(t, error_train, 'r', label="train")
+plt.plot(t, error_test, 'b', label="test")
 plt.title('MSE Loss')
 plt.xlabel('number of epochs')
 plt.ylabel('loss')

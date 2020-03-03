@@ -12,7 +12,7 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 
-if (torch.cuda.is_available() == True):
+if (torch.cuda.is_available() == False):
     device = 'cuda'
 else:
     device = 'cpu'
