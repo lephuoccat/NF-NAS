@@ -90,7 +90,7 @@ class LSTM(nn.Module):
 
 
 # Training
-num_epochs = 100
+num_epochs = 1000
 learning_rate = 0.01
 
 input_size = 1

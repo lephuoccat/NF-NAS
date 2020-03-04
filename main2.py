@@ -21,7 +21,7 @@ import numpy as np
 from scipy.optimize import fsolve
 from statsmodels.tsa.stattools import levinson_durbin as levinson
 from load_data import window, LoadData
-from network_structure import NF, fit
+from network_structure2 import NF, fit
 
 import torch
 # import torchvision
@@ -39,7 +39,7 @@ parser.add_argument('--num-flow', default=10, type=int, help='number of flows')
 parser.add_argument('--window-size', default=3, type=int, help='sliding window size for time series data')
 args = parser.parse_args()
 
-if (torch.cuda.is_available() == False):
+if (torch.cuda.is_available() == True):
     device = 'cuda'
 else:
     device = 'cpu'
@@ -57,7 +57,7 @@ divider = np.floor(len(temp) * 0.9).astype(int)
 temp_train = temp[:divider]
 temp_test = temp[divider:]
 
-sliding_data_train = window(temp_train, args.window_size)
+sliding_data_train = window(temp_train, args.window_size + 1)
 sliding_data_test = window(temp_test, args.window_size + 1)
 
 # create array from sliding trunk of data
@@ -71,7 +71,7 @@ for value in sliding_data_test:
 
 # dataloader for neural network training
 train_data = train_data.astype(float)
-trainloader = DataLoader(train_data, batch_size=args.batch_size_train, shuffle=False)
+trainloader = DataLoader(train_data, batch_size=args.batch_size_train + 1, shuffle=False)
 
 test_data = test_data.astype(float)
 testloader = DataLoader(test_data, batch_size=args.batch_size_train + 1, shuffle=False)
@@ -102,7 +102,9 @@ for i in range(args.num_iteration):
     # extract latent features from trained network
     phi = []
     for batch_idx, (data) in enumerate(trainloader):
+        data = data[:-1]
         data = data.to(device)
+        
         features = cnn.flow(data).cpu().detach().numpy()
         
         # add the first 2 features in the 1st trunk
