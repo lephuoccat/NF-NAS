@@ -18,9 +18,9 @@ from scipy.optimize import fsolve
 
 import torch
 from torch import nn
-from torch.autograd import Variable
+# from torch.autograd import Variable
 
-if (torch.cuda.is_available() == True):
+if (torch.cuda.is_available() == False):
     device = 'cuda'
 else:
     device = 'cpu'
@@ -84,7 +84,7 @@ class NF(nn.Module):
             w = self.flow[i].w.cpu().detach().numpy()
             b = self.flow[i].b.cpu().detach().numpy()
             
-            # define equation
+            # define equation:
             # y = x + theta * tanh(x)
             y = np.dot(w[0], np.transpose(Y)) + b
             theta = np.dot(w[0], np.transpose(u[0]))
@@ -102,17 +102,15 @@ class NF(nn.Module):
         return Y_tensor
     
 # train network structure
-def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
+def fit(model, train_loader, alpha, EPOCHS, num_layer, error_list):
     optimizer = torch.optim.Adam(model.parameters())
     error = nn.MSELoss()
     model.train()
     
     ave_error = 0
     total_error = 0
-    
     for epoch in range(EPOCHS):
-        previous_y1 = 0
-        previous_y2 = 0
+        previous_y = torch.ones(len(alpha))
         for batch_idx, (inputs) in enumerate(train_loader):  
             x_hat = inputs[-1]
             inputs = inputs[:-1]
@@ -122,39 +120,32 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
             optimizer.zero_grad()
             output = model(inputs)
             
-            # Output of the NF neural network (y-domain)
-            y1 = output[0, 0]
-            y2 = output[0, 1]
-            y3 = output[0, 2]
-            
             # Use alpha parameters from Levinson recursion
             # to predict in y-domain
-            predict_y = alpha1 * y2 + alpha2 * y3
-            predict_y3 = alpha1 * y1 + alpha2 * y2
+            predict_y = torch.sum(torch.mul(alpha, output[0,1:]))           # y to predict unseem y
+            last_y = torch.sum(torch.mul(alpha, output[0,:-1]))             # y to predict seem y (last y)
             
             # Pull x from y-domain
-            reconstruct_target = torch.cat((y2.unsqueeze(0), y3.unsqueeze(0), predict_y.unsqueeze(0)), dim=0)
+            reconstruct_target = torch.cat((output[0,1:], predict_y.unsqueeze(0)), dim=0)
             predict_x = model.reconstruct(reconstruct_target, num_layer)
             # MSE loss from prediction in x-domain
             # only consider the loss of the last value 
             # (the "future" x, but not the "past" x)
-            x_loss = error(predict_x[0, -1], x_hat)
+            x_loss = error(predict_x[0,-1], x_hat)
             
             # Target for y-domain
-            target = np.array([[previous_y1, previous_y2, predict_y3.cpu().detach().numpy()]])
-            target = Variable(torch.from_numpy(target).float()).to(device)
+            target = torch.cat((previous_y, last_y.unsqueeze(0)), dim=0).unsqueeze(0)
             # MSE loss from prediction in y-domain
             y_loss = error(output, target)
             
             # loss and backpropagation
             beta = 0.5
             loss = beta * y_loss + (1-beta) * x_loss     
-            loss.backward()
+            loss.backward(retain_graph=True)
             optimizer.step()
             
-            # update previous y2 & y3
-            previous_y1 = y2.cpu().detach().numpy()
-            previous_y2 = y3.cpu().detach().numpy()
+            # update previous y intermediate
+            previous_y = output[0,1:]
             
             # Total error for prediction in x-domain
             total_error += x_loss.cpu().detach().numpy()

@@ -18,7 +18,7 @@ import argparse
 import matplotlib.pyplot as plt
 
 import numpy as np
-from scipy.optimize import fsolve
+# from scipy.optimize import fsolve
 from statsmodels.tsa.stattools import levinson_durbin as levinson
 from load_data import window, LoadData
 from network_structure2 import NF, fit
@@ -26,20 +26,21 @@ from network_structure2 import NF, fit
 import torch
 # import torchvision
 from torch import nn
-from torch.autograd import Variable
+# from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
 # Parser
 parser = argparse.ArgumentParser(description='GWR CIFAR10 Training')
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
-parser.add_argument('--batch-size-train', default=3, type=int, help='batch size train')
-parser.add_argument('--num-iteration', default=20, type=int, help='iteration to train NAS')
-parser.add_argument('--num-epoch', default=2, type=int, help='number of epochs')
-parser.add_argument('--num-flow', default=10, type=int, help='number of flows')
-parser.add_argument('--window-size', default=3, type=int, help='sliding window size for time series data')
+parser.add_argument('--batch-size-train', default=4, type=int, help='batch size train')
+parser.add_argument('--window-size', default=4, type=int, help='sliding window size for time series data')
+parser.add_argument('--num-iteration', default=20, type=int, help='iteration to jointly train NAS')
+parser.add_argument('--num-epoch', default=5, type=int, help='number of epochs to train NF')
+parser.add_argument('--num-flow', default=10, type=int, help='number of layers in NF')
+
 args = parser.parse_args()
 
-if (torch.cuda.is_available() == True):
+if (torch.cuda.is_available() == False):
     device = 'cuda'
 else:
     device = 'cpu'
@@ -83,21 +84,17 @@ cnn = NF(args.window_size, args.num_flow)
 cnn = cnn.to(device)
 print(cnn)
 
-alpha1 = 1
-alpha2 = 1
+# initialize alpha as an array of 1
+alpha = torch.ones(args.window_size - 1)
 error_train = []
 error_test = []
-alpha1_list = []
-alpha2_list = []
 
 # train and test
 for i in range(args.num_iteration):
     print('Iteration: %d' % i)
-    print('alpha 1: %f' % alpha1)
-    print('alpha 2: %f' % alpha2)
     
     # train network structure
-    fit(cnn, trainloader, alpha1, alpha2, args.num_epoch, args.num_flow, error_train)
+    fit(cnn, trainloader, alpha, args.num_epoch, args.num_flow, error_train)
     
     # extract latent features from trained network
     phi = []
@@ -116,11 +113,9 @@ for i in range(args.num_iteration):
     
     # train alpha parameter with RLS
     [_,alpha,_,_,_] = levinson(phi, nlags=args.window_size-1)
-    alpha1 = alpha[0]
-    alpha2 = alpha[1]
-    alpha1_list.append(alpha1)
-    alpha2_list.append(alpha2)
     
+    # convert alpha to tensor
+    alpha = torch.from_numpy(alpha).type(torch.FloatTensor)
     
     
     # test
@@ -131,20 +126,15 @@ for i in range(args.num_iteration):
         x = data[-1].cpu().detach().numpy()
         data = data[:-1]
         features = cnn.flow(data)
-        
-        # if batch_idx == 0:
-        #     x_test = data.cpu().detach().numpy()[-1]
-        # else:
-        #     x = data.cpu().detach().numpy()[-1]
-        #     MSE_test += (x_test - x)**2
             
-        # calculate predicted y3
-        y2 = features[0,1]
-        y3 = features[0,2]
-        y_test = alpha1 * y2 + alpha2 * y3
-        reconstruct_y = torch.cat((y2.unsqueeze(0), y3.unsqueeze(0), y_test.unsqueeze(0)), dim=0)
+        # Use alpha parameters from Levinson recursion
+        # to predict in y-domain
+        y_test = torch.sum(torch.mul(alpha, features[0,1:]))
         
-        # pull predicted x3 from y3
+        # calculate predicted y
+        reconstruct_y = torch.cat((features[0,1:], y_test.unsqueeze(0)), dim=0)
+        
+        # pull predicted x from y
         reconstruct_x = cnn.reconstruct(reconstruct_y, args.num_flow)
     
         # MSE test
@@ -162,11 +152,8 @@ for i in range(args.num_iteration):
 
 
 
-
-
-
 #------------------------------------
-# plot the loss and alpha parameters
+# plot the MSE loss
 t = np.arange(len(error_train))
 
 # loss
@@ -182,27 +169,3 @@ plt.legend(['train',
 plt.xticks(np.arange(0, 20, step=1))
 plt.grid(True)
 plt.show()
-
-# alpha parameters
-plt.figure(figsize=[14,10])
-plt.plot(t, alpha1_list, 'bs-', t, alpha2_list, 'g^-')
-plt.title('\N{GREEK SMALL LETTER ALPHA} parameters')
-plt.xlabel('number of epochs')
-plt.ylabel('\N{GREEK SMALL LETTER ALPHA}')
-plt.legend(['\N{GREEK SMALL LETTER ALPHA}\N{SUBSCRIPT ONE}',
-            '\N{GREEK SMALL LETTER ALPHA}\N{SUBSCRIPT TWO}'])
-plt.xticks(np.arange(0, 20, step=1))
-plt.grid(True)
-plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
