@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar  3 18:40:15 2020
+
+@author: Cat Le
+"""
+
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -50,7 +58,7 @@ temp_train = temp[:divider]
 temp_test = temp[divider:]
 
 sliding_data_train = window(temp_train, args.window_size)
-sliding_data_test = window(temp_test, args.window_size)
+sliding_data_test = window(temp_test, args.window_size + 1)
 
 # create array from sliding trunk of data
 train_data = []
@@ -66,7 +74,7 @@ train_data = train_data.astype(float)
 trainloader = DataLoader(train_data, batch_size=args.batch_size_train, shuffle=False)
 
 test_data = test_data.astype(float)
-testloader = DataLoader(test_data, batch_size=args.batch_size_train, shuffle=False)
+testloader = DataLoader(test_data, batch_size=args.batch_size_train + 1, shuffle=False)
 
 # ----------------------------------------------
 # main code
@@ -118,24 +126,30 @@ for i in range(args.num_iteration):
     for batch_idx, (data) in enumerate(testloader):
         # pass test data into trained network
         data = data.to(device)
+        x = data[-1].cpu().detach().numpy()
+        data = data[:-1]
         features = cnn.flow(data)
         
+        # if batch_idx == 0:
+        #     x_test = data.cpu().detach().numpy()[-1]
+        # else:
+        #     x = data.cpu().detach().numpy()[-1]
+        #     MSE_test += (x_test - x)**2
+            
         # calculate predicted y3
-        y1 = features[0,0]
         y2 = features[0,1]
-        y_test = alpha1 * y1 + alpha2 * y2
-        reconstruct_y = torch.cat((y1.unsqueeze(0), y2.unsqueeze(0), y_test.unsqueeze(0)), dim=0)
+        y3 = features[0,2]
+        y_test = alpha1 * y2 + alpha2 * y3
+        reconstruct_y = torch.cat((y2.unsqueeze(0), y3.unsqueeze(0), y_test.unsqueeze(0)), dim=0)
         
         # pull predicted x3 from y3
         reconstruct_x = cnn.reconstruct(reconstruct_y, args.num_flow)
     
-        # MSE loss
-        x = data.cpu().detach().numpy()[-1]
+        # MSE test
         x_test = reconstruct_x.cpu().detach().numpy()[0,-1]
-
         MSE_test += (x_test - x)**2
     
-    MSE_test = MSE_test/batch_idx
+    MSE_test = MSE_test/(batch_idx+1)
     print('MSE test: %f' % MSE_test)
     error_test.append(MSE_test)
     print('\n')

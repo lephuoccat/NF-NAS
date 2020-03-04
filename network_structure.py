@@ -126,8 +126,9 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
             # MSE loss from prediction in x-domain
             # only consider the loss of the last value 
             # (the "future" x, but not the "past" x)
-            x_loss = error(predict_x[0, -1], inputs[-1])
-            
+            # x_loss = error(predict_x[0, -1], inputs[-1])
+            x_loss = error(predict_x, inputs)
+            predict_x_loss = error(predict_x[0, -1], inputs[-1])
             
             # Target for y-domain
             target = np.array([[previous_y1, previous_y2, predict_y3.cpu().detach().numpy()]])
@@ -136,7 +137,7 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
             y_loss = error(output, target)
             
             # loss and backpropagation
-            beta = 0.3
+            beta = 0.5
             loss = beta * y_loss + (1-beta) * x_loss     
             loss.backward()
             optimizer.step()
@@ -146,14 +147,14 @@ def fit(model, train_loader, alpha1, alpha2, EPOCHS, num_layer, error_list):
             previous_y2 = y3.cpu().detach().numpy()
             
             # Total error for prediction in x-domain
-            total_error += x_loss.cpu().detach().numpy()
+            total_error += predict_x_loss.cpu().detach().numpy()
             
     print('prediction of last x:')
     print(predict_x.cpu().detach().numpy())
     print('actual x:')
     print(inputs.cpu().detach().numpy())
 
-    ave_error = total_error/(EPOCHS * (batch_idx+3))
+    ave_error = total_error/(EPOCHS * (batch_idx+1))
     error_list.append(ave_error)
-    print('The last-batch MSE loss: {:.9f}'.format(float(loss.cpu().detach().numpy())))
-    print('Average MSE loss: {:.9f}'.format(ave_error))
+    # print('The last-batch training MSE: {:.9f}'.format(float(loss.cpu().detach().numpy())))
+    print('MSE train: {:.9f}'.format(ave_error))

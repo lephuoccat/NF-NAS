@@ -37,8 +37,9 @@ def sliding_windows(data, seq_length):
 sc = MinMaxScaler()
 training_data = sc.fit_transform(training_set)
 
-seq_length = 3
+seq_length = 2
 x, y = sliding_windows(training_data, seq_length)
+
 
 train_size = int(len(y) * 0.9)
 test_size = len(y) - train_size
@@ -89,7 +90,7 @@ class LSTM(nn.Module):
 
 
 # Training
-num_epochs = 1000
+num_epochs = 100
 learning_rate = 0.01
 
 input_size = 1
@@ -153,8 +154,6 @@ test_predict = sc.inverse_transform(test_predict)
 testY_plot = sc.inverse_transform(testY_plot)
 
 print(MSE(test_predict, testY_plot))
-
-
 
 
 
