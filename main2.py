@@ -32,11 +32,11 @@ from torch.utils.data import DataLoader
 # Parser
 parser = argparse.ArgumentParser(description='GWR CIFAR10 Training')
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
-parser.add_argument('--batch-size-train', default=4, type=int, help='batch size train')
-parser.add_argument('--window-size', default=4, type=int, help='sliding window size for time series data')
+parser.add_argument('--batch-size-train', default=5, type=int, help='batch size train')
+parser.add_argument('--window-size', default=5, type=int, help='sliding window size for time series data')
 parser.add_argument('--num-iteration', default=20, type=int, help='iteration to jointly train NAS')
-parser.add_argument('--num-epoch', default=5, type=int, help='number of epochs to train NF')
-parser.add_argument('--num-flow', default=10, type=int, help='number of layers in NF')
+parser.add_argument('--num-epoch', default=2, type=int, help='number of epochs to train NF')
+parser.add_argument('--num-flow', default=20, type=int, help='number of layers in NF')
 
 args = parser.parse_args()
 
