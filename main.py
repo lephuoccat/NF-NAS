@@ -71,7 +71,7 @@ testloader = DataLoader(test_data, batch_size=args.batch_size_train, shuffle=Fal
 # ----------------------------------------------
 # main code
 # initialize the network structure
-cnn = NF(args.window_size, args.num_flow)
+cnn = NF(args)
 cnn = cnn.to(device)
 print(cnn)
 
@@ -89,7 +89,7 @@ for i in range(args.num_iteration):
     print('alpha 2: %f' % alpha2)
     
     # train network structure
-    fit(cnn, trainloader, alpha1, alpha2, args.num_epoch, args.num_flow, error_train)
+    fit(cnn, trainloader, alpha1, alpha2, error_train, args)
     
     # extract latent features from trained network
     phi = []
@@ -125,14 +125,13 @@ for i in range(args.num_iteration):
         y2 = features[0,1]
         y_test = alpha1 * y1 + alpha2 * y2
         reconstruct_y = torch.cat((y1.unsqueeze(0), y2.unsqueeze(0), y_test.unsqueeze(0)), dim=0)
-        
         # pull predicted x3 from y3
-        reconstruct_x = cnn.reconstruct(reconstruct_y, args.num_flow)
-    
+        reconstruct_x = cnn.reconstruct(reconstruct_y, args)
+        
         # MSE loss
         x = data.cpu().detach().numpy()[-1]
         x_test = reconstruct_x.cpu().detach().numpy()[0,-1]
-
+        
         MSE_test += (x_test - x)**2
     
     MSE_test = MSE_test/batch_idx

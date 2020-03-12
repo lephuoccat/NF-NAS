@@ -23,8 +23,8 @@ from torch.utils.data import DataLoader
 # Parser
 parser = argparse.ArgumentParser(description='GWR CIFAR10 Training')
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
-parser.add_argument('--batch-size-train', default=5, type=int, help='batch size train')
-parser.add_argument('--window-size', default=5, type=int, help='sliding window size for time series data')
+parser.add_argument('--batch-size-train', default=6, type=int, help='batch size train')
+parser.add_argument('--window-size', default=6, type=int, help='sliding window size for time series data')
 parser.add_argument('--num-iteration', default=20, type=int, help='iteration to jointly train NAS')
 parser.add_argument('--num-epoch', default=2, type=int, help='number of epochs to train NF')
 parser.add_argument('--num-flow', default=20, type=int, help='number of layers in NF')
@@ -71,7 +71,7 @@ testloader = DataLoader(test_data, batch_size=args.batch_size_train + 1, shuffle
 # ----------------------------------------------
 # main code
 # initialize the network structure
-cnn = NF(args.window_size, args.num_flow)
+cnn = NF(args)
 cnn = cnn.to(device)
 print(cnn)
 
@@ -85,7 +85,7 @@ for i in range(args.num_iteration):
     print('Iteration: %d' % i)
     
     # train network structure
-    fit(cnn, trainloader, alpha, args.num_epoch, args.num_flow, error_train)
+    fit(cnn, trainloader, alpha, error_train, args)
     
     # extract latent features from trained network
     phi = []
@@ -126,7 +126,7 @@ for i in range(args.num_iteration):
         reconstruct_y = torch.cat((features[0,1:], y_test.unsqueeze(0)), dim=0)
         
         # pull predicted x from y
-        reconstruct_x = cnn.reconstruct(reconstruct_y, args.num_flow)
+        reconstruct_x = cnn.reconstruct(reconstruct_y, args)
     
         # MSE test
         x_test = reconstruct_x.cpu().detach().numpy()[0,-1]

@@ -65,18 +65,18 @@ class PlanarFlow(nn.Module):
 
 # Create NF neural nework with multiple layers
 class NF(nn.Module):
-    def __init__(self, latent_size, num_layer):
+    def __init__(self, args):
         super(NF, self).__init__()
         
         # NF
-        self.flow = nn.Sequential(*[PlanarFlow(d=latent_size) for _ in range(num_layer)])
+        self.flow = nn.Sequential(*[PlanarFlow(d=args.window_size) for _ in range(args.num_flow)])
        
     def forward(self, X):
         Y = self.flow(X)       
         return Y
    
-    def reconstruct(self, Y_tensor, num_layer):
-        for i in range(num_layer-1, -1, -1):
+    def reconstruct(self, Y_tensor, args):
+        for i in range(args.num_flow - 1, -1, -1):
             # parameter from NF
             U_tensor = self.flow[i].u
             Y = Y_tensor.cpu().detach().numpy()
@@ -102,14 +102,14 @@ class NF(nn.Module):
         return Y_tensor
     
 # train network structure
-def fit(model, train_loader, alpha, EPOCHS, num_layer, error_list):
+def fit(model, train_loader, alpha, error_list, args):
     optimizer = torch.optim.Adam(model.parameters())
     error = nn.MSELoss()
     model.train()
     
     ave_error = 0
     total_error = 0
-    for epoch in range(EPOCHS):
+    for epoch in range(args.num_epoch):
         previous_y = torch.ones(len(alpha))
         for batch_idx, (inputs) in enumerate(train_loader):  
             x_hat = inputs[-1]
@@ -127,7 +127,7 @@ def fit(model, train_loader, alpha, EPOCHS, num_layer, error_list):
             
             # Pull x from y-domain
             reconstruct_target = torch.cat((output[0,1:], predict_y.unsqueeze(0)), dim=0)
-            predict_x = model.reconstruct(reconstruct_target, num_layer)
+            predict_x = model.reconstruct(reconstruct_target, args)
             # MSE loss from prediction in x-domain
             # only consider the loss of the last value 
             # (the "future" x, but not the "past" x)
@@ -155,7 +155,7 @@ def fit(model, train_loader, alpha, EPOCHS, num_layer, error_list):
     print('actual x:')
     print(inputs.cpu().detach().numpy())
 
-    ave_error = total_error/(EPOCHS * (batch_idx+1))
+    ave_error = total_error/(args.num_epoch * (batch_idx+1))
     error_list.append(ave_error)
     # print('The last-batch training MSE: {:.9f}'.format(float(loss.cpu().detach().numpy())))
     print('MSE train: {:.9f}'.format(ave_error))
