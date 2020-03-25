@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 # from scipy.optimize import fsolve
 from statsmodels.tsa.stattools import levinson_durbin as levinson
+from statsmodels.tsa.stattools import acf, ccf
 from load_data import window, LoadData
 from network_structure2 import NF, fit
 
@@ -23,11 +24,11 @@ from torch.utils.data import DataLoader
 # Parser
 parser = argparse.ArgumentParser(description='GWR CIFAR10 Training')
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
-parser.add_argument('--batch-size-train', default=6, type=int, help='batch size train')
-parser.add_argument('--window-size', default=6, type=int, help='sliding window size for time series data')
+parser.add_argument('--batch-size-train', default=3, type=int, help='batch size train')
+parser.add_argument('--window-size', default=3, type=int, help='sliding window size for time series data')
 parser.add_argument('--num-iteration', default=20, type=int, help='iteration to jointly train NAS')
 parser.add_argument('--num-epoch', default=2, type=int, help='number of epochs to train NF')
-parser.add_argument('--num-flow', default=20, type=int, help='number of layers in NF')
+parser.add_argument('--num-flow', default=10, type=int, help='number of layers in NF')
 
 args = parser.parse_args()
 
@@ -38,12 +39,15 @@ else:
 
 # ----------------------------------------------
 # Load data
-filename = "daily-min-temperatures.csv"
+# filename = "daily-min-temperatures.csv"
+filename = "monthly-sunspots.csv"
 rows = LoadData(filename)
 
 # Generate sliding data as a trunk
 data = np.asarray(rows)
 temp = data[:,1]
+# temp = temp.astype(float)
+
 # divide data into train and test sets
 divider = np.floor(len(temp) * 0.9).astype(int)
 temp_train = temp[:divider]
@@ -111,13 +115,15 @@ for i in range(args.num_iteration):
     
     # test
     MSE_test = 0
+    output_list = [[] for batch_idx,_ in enumerate(testloader)]
     for batch_idx, (data) in enumerate(testloader):
         # pass test data into trained network
         data = data.to(device)
         x = data[-1].cpu().detach().numpy()
         data = data[:-1]
         features = cnn.flow(data)
-            
+        output_list[batch_idx] = np.append(output_list[batch_idx], features.detach().numpy())
+        
         # Use alpha parameters from Levinson recursion
         # to predict in y-domain
         y_test = torch.sum(torch.mul(alpha, features[0,1:]))
@@ -136,6 +142,53 @@ for i in range(args.num_iteration):
     print('MSE test: %f' % MSE_test)
     error_test.append(MSE_test)
     print('\n')
+
+
+
+# Analyze the consistant difference of y-output
+output_list = [[] for batch_idx,_ in enumerate(testloader)]
+ACF_list = [[] for batch_idx,_ in enumerate(testloader)]
+for batch_idx, (data) in enumerate(testloader):
+    # pass test data into trained network
+    data = data.to(device)
+    x = data[-1].cpu().detach().numpy()
+    data = data[:-1]
+    features = cnn.flow(data)
+    ACF_val = acf(features.detach().numpy()[0], fft=True)
+    output_list[batch_idx] = np.append(output_list[batch_idx], features.detach().numpy()) 
+    ACF_list[batch_idx] = np.append(ACF_list[batch_idx], ACF_val)
+    
+m = len(output_list)
+n = output_list[0].shape[0]
+cum_error = 0
+cum_var = 0
+for i in range(m - n + 1):
+    error = 0
+    time_seq = []
+    for j in range(n):
+        error += abs(output_list[i][-1] - output_list[i+j][-(j+1)])
+        time_seq.append(output_list[i+j][-(j+1)])
+    var = np.var(time_seq)
+    cum_var += var
+    cum_error += error/(n-1)
+cum_error = cum_error/(m - n + 1)
+print(cum_error)
+print(cum_var/(m - n + 1))
+
+
+
+
+
+
+# histogram
+ACF = np.transpose(np.asarray(ACF_list))
+np.save('lag1.npy', ACF[1])
+
+# var[lag1]=0.079, var[lag2]=0.0455 , var[lag3]=0.065 , var[lag4]=0.034 , var[lag5]=0.023 
+_ = plt.hist(ACF[1], bins='auto')
+plt.title('Histogram of autocovariance with lag=1, var=0.079')
+plt.show()
+
 
 
 
@@ -160,3 +213,55 @@ plt.legend(['train',
 plt.xticks(np.arange(0, 20, step=1))
 plt.grid(True)
 plt.show()
+
+
+'''
+#--------------------------------
+# create multiple time series
+temp2 = np.delete(temp,0)
+# divide data into train and test sets
+divider = np.floor(len(temp2) * 0.9).astype(int)
+temp_train = temp2[:divider]
+temp_test = temp2[divider:]
+
+sliding_data_train = window(temp_train, args.window_size + 1)
+sliding_data_test = window(temp_test, args.window_size + 1)
+
+# create array from sliding trunk of data
+train_data = []
+for value in sliding_data_train:  
+    train_data = np.append(train_data, value)
+
+test_data = []
+for value in sliding_data_test:  
+    test_data = np.append(test_data, value)
+
+# dataloader for neural network training
+train_data = train_data.astype(float)
+trainloader = DataLoader(train_data, batch_size=args.batch_size_train + 1, shuffle=False)
+
+test_data = test_data.astype(float)
+testloader = DataLoader(test_data, batch_size=args.batch_size_train + 1, shuffle=False)
+
+
+# new y output
+phi2 = []
+for batch_idx, (data) in enumerate(trainloader):
+    data = data[:-1]
+    data = data.to(device)
+    
+    features = cnn.flow(data).cpu().detach().numpy()
+    
+    # add the first 2 features in the 1st trunk
+    if batch_idx == 0:
+        for i in range(len(features[0]) - 1):
+            phi2.append(features[0,i])
+    # add the last features (predicting y) in every trunk
+    phi2.append(features[0,-1])
+
+phi1 = phi[1:]
+CCF = ccf(phi1, phi2, unbiased=True)
+
+plt.plot(CCF)
+plt.title('cross covariance CCF with lag=1')
+'''

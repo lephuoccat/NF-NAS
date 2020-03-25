@@ -12,6 +12,11 @@ import torch.nn.functional as F
 import torch.nn.utils.weight_norm as wn
 import torch.distributions as D
 
+if (torch.cuda.is_available() == False):
+    device = 'cuda'
+else:
+    device = 'cpu'
+
 # Basic Layers 
 # -------------------------------------------------------------------------------------------------------
 
@@ -150,3 +155,123 @@ class IAFLayer(nn.Module):
         h = self.down_conv_b(h)
 
         return input + 0.1 * h, kl, kl_obj 
+
+
+
+
+class NF(nn.Module):
+    def __init__(self, args):
+        super(NF, self).__init__()
+        self.register_parameter('h', torch.nn.Parameter(torch.zeros(args.h_size)))
+        self.register_parameter('dec_log_stdv', torch.nn.Parameter(torch.Tensor([0.])))
+
+        layers = []
+        # build network
+        for i in range(args.depth):
+            layer = []
+
+            for j in range(args.n_blocks):
+                downsample = (i > 0) and (j == 0)
+                layer += [IAFLayer(args, downsample)]
+
+            layers += [nn.ModuleList(layer)]
+
+        self.layers = nn.ModuleList(layers) 
+
+    def forward(self, input):
+        # assumes input is \in [-0.5, 0.5] 
+        x = input
+        for layer in self.layers:
+            for sub_layer in layer:
+                x = sub_layer.up(x)
+
+        return x
+
+    def reconstruct(self, x, kl, kl_obj, args):
+        h = self.h.view(1, -1, 1, 1)
+        h = h.expand_as(x)
+        self.hid_shape = x[0].size()
+        kl, kl_obj = 0., 0.
+        
+        for layer in reversed(self.layers):
+            for sub_layer in reversed(layer):
+                h, curr_kl, curr_kl_obj = sub_layer.down(h)
+                kl     += curr_kl
+                kl_obj += curr_kl_obj
+        
+        x = F.elu(h)
+        return x, kl, kl_obj
+
+
+# train network structure
+def fit(model, train_loader, alpha, error_list, args):
+    optimizer = torch.optim.Adam(model.parameters())
+    error = nn.MSELoss()
+    model.train()
+    
+    ave_error = 0
+    total_error = 0
+    for epoch in range(args.num_epoch):
+        previous_y = torch.ones(len(alpha))
+        for batch_idx, (inputs) in enumerate(train_loader):  
+            x_hat = inputs[-1]
+            inputs = inputs[:-1]
+                        
+            # Pass data (x-domain) into model
+            inputs = inputs.to(device)
+            optimizer.zero_grad()
+            output = model(inputs)
+            
+            print(inputs)
+            print(output)
+            
+            # Use alpha parameters from Levinson recursion
+            # to predict in y-domain
+            predict_y = torch.sum(torch.mul(alpha, output[0,1:]))           # y to predict unseem y
+            last_y = torch.sum(torch.mul(alpha, output[0,:-1]))             # y to predict seem y (last y)
+            
+            # Pull x from y-domain
+            reconstruct_target = torch.cat((output[0,1:], predict_y.unsqueeze(0)), dim=0)
+            predict_x, kl, kl_obj = model.reconstruct(reconstruct_target, args)
+            print(predict_x)
+            print(kl)
+            print(kl_obj)
+            # MSE loss from prediction in x-domain
+            # only consider the loss of the last value 
+            # (the "future" x, but not the "past" x)
+            x_loss = error(predict_x[0,-1], x_hat)
+            
+            # Target for y-domain
+            target = torch.cat((previous_y, last_y.unsqueeze(0)), dim=0).unsqueeze(0)
+            # MSE loss from prediction in y-domain
+            y_loss = error(output, target)
+            
+            # loss and backpropagation
+            beta = 0.5
+            loss = beta * y_loss + (1-beta) * x_loss     
+            loss.backward(retain_graph=True)
+            optimizer.step()
+            
+            # update previous y intermediate
+            previous_y = output[0,1:]
+            
+            # Total error for prediction in x-domain
+            total_error += x_loss.cpu().detach().numpy()
+            
+    print('prediction of last x:')
+    print(predict_x.cpu().detach().numpy())
+    print('actual x:')
+    print(inputs.cpu().detach().numpy())
+
+    ave_error = total_error/(args.num_epoch * (batch_idx+1))
+    error_list.append(ave_error)
+    # print('The last-batch training MSE: {:.9f}'.format(float(loss.cpu().detach().numpy())))
+    print('MSE train: {:.9f}'.format(ave_error))
+
+
+
+
+
+
+
+

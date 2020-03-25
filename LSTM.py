@@ -15,9 +15,11 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error as MSE
 
 # Plot dataset
-training_set = pd.read_csv('daily-min-temperatures.csv')
+# training_set = pd.read_csv('daily-min-temperatures.csv')
+training_set = pd.read_csv('monthly-sunspots.csv')
 training_set = training_set.iloc[:,1:2].values
-plt.plot(training_set, label = 'Daily Minimum Temperatures')
+# plt.plot(training_set, label = 'Daily Minimum Temperatures')
+plt.plot(training_set, label = 'monthly-sunspots')
 plt.show()
 
 
@@ -37,7 +39,7 @@ def sliding_windows(data, seq_length):
 sc = MinMaxScaler()
 training_data = sc.fit_transform(training_set)
 
-seq_length = 4
+seq_length = 2
 x, y = sliding_windows(training_data, seq_length)
 
 
@@ -90,7 +92,7 @@ class LSTM(nn.Module):
 
 
 # Training
-num_epochs = 500
+num_epochs = 1000
 learning_rate = 0.01
 
 input_size = 1
