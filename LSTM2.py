@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar  3 10:35:06 2020
+Created on Mon Mar 30 10:21:18 2020
 
 @author: Cat Le
 """
@@ -29,18 +29,22 @@ def sliding_windows(data, seq_length):
     y = []
 
     for i in range(len(data)-seq_length-1):
-        _x = data[i:(i+seq_length)]
-        _y = data[i+seq_length]
+        temp = data[(i+1):(i+seq_length+1)] - data[i:(i+seq_length)]
+        
+        _x = temp[:-1]
+        _y = temp[-1]
         x.append(_x)
         y.append(_y)
 
     return np.array(x),np.array(y)
 
-sc = MinMaxScaler()
-training_data = sc.fit_transform(training_set)
+# sc = MinMaxScaler()
+# training_data = sc.fit_transform(training_set)
 
-seq_length = 6
-x, y = sliding_windows(training_data, seq_length)
+seq_length = 5
+x, y = sliding_windows(training_set, seq_length+1)
+
+
 
 
 train_size = int(len(y) * 0.9)
@@ -133,8 +137,8 @@ train_predict = lstm(dataX)
 data_predict = train_predict.data.numpy()
 dataY_plot = dataY.data.numpy()
 
-data_predict = sc.inverse_transform(data_predict)
-dataY_plot = sc.inverse_transform(dataY_plot)
+# data_predict = sc.inverse_transform(data_predict)
+# dataY_plot = sc.inverse_transform(dataY_plot)
 
 print(MSE(data_predict, dataY_plot))
 
@@ -151,8 +155,8 @@ test_predict = lstm(trainX)
 test_predict = test_predict.data.numpy()
 testY_plot = trainY.data.numpy()
 
-test_predict = sc.inverse_transform(test_predict)
-testY_plot = sc.inverse_transform(testY_plot)
+# test_predict = sc.inverse_transform(test_predict)
+# testY_plot = sc.inverse_transform(testY_plot)
 
 print(MSE(test_predict, testY_plot))
 
@@ -162,8 +166,8 @@ test_predict = lstm(testX)
 test_predict = test_predict.data.numpy()
 testY_plot = testY.data.numpy()
 
-test_predict = sc.inverse_transform(test_predict)
-testY_plot = sc.inverse_transform(testY_plot)
+# test_predict = sc.inverse_transform(test_predict)
+# testY_plot = sc.inverse_transform(testY_plot)
 
 print(MSE(test_predict, testY_plot))
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar  3 10:35:06 2020
+Created on Mon Mar 30 11:07:46 2020
 
 @author: Cat Le
 """
@@ -22,6 +22,10 @@ plt.plot(training_set, label = 'Daily Minimum Temperatures')
 # plt.plot(training_set, label = 'shampoo')
 plt.show()
 
+ave_data = []
+for i in range(int(training_set.shape[0]/3)):
+    ave_data = np.append(ave_data, np.mean(training_set[3*i:3*(i+1)]))
+
 
 # Load data
 def sliding_windows(data, seq_length):
@@ -37,9 +41,9 @@ def sliding_windows(data, seq_length):
     return np.array(x),np.array(y)
 
 sc = MinMaxScaler()
-training_data = sc.fit_transform(training_set)
+training_data = sc.fit_transform(ave_data.reshape(-1, 1))
 
-seq_length = 6
+seq_length = 3
 x, y = sliding_windows(training_data, seq_length)
 
 

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar  3 18:40:15 2020
+Created on Mon Mar 30 09:40:48 2020
 
 @author: Cat Le
 """
+
 import os
 import argparse
 import matplotlib.pyplot as plt
@@ -24,11 +25,11 @@ from torch.utils.data import DataLoader
 # Parser
 parser = argparse.ArgumentParser(description='GWR CIFAR10 Training')
 parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
-parser.add_argument('--batch-size-train', default=6, type=int, help='batch size train')
-parser.add_argument('--window-size', default=6, type=int, help='sliding window size for time series data')
-parser.add_argument('--num-iteration', default=10, type=int, help='iteration to jointly train NAS')
-parser.add_argument('--num-epoch', default=1, type=int, help='number of epochs to train NF')
-parser.add_argument('--num-flow', default=10, type=int, help='number of layers in NF')
+parser.add_argument('--batch-size-train', default=5, type=int, help='batch size train')
+parser.add_argument('--window-size', default=5, type=int, help='sliding window size for time series data')
+parser.add_argument('--num-iteration', default=20, type=int, help='iteration to jointly train NAS')
+parser.add_argument('--num-epoch', default=2, type=int, help='number of epochs to train NF')
+parser.add_argument('--num-flow', default=20, type=int, help='number of layers in NF')
 
 args = parser.parse_args()
 
@@ -55,24 +56,35 @@ divider = np.floor(len(temp) * 0.9).astype(int)
 temp_train = temp[:divider]
 temp_test = temp[divider:]
 
-sliding_data_train = window(temp_train, args.window_size + 1)
-sliding_data_test = window(temp_test, args.window_size + 1)
+sliding_data_train = window(temp_train, args.window_size + 2)
+sliding_data_test = window(temp_test, args.window_size + 2)
 
 # create array from sliding trunk of data
 train_data = []
 for value in sliding_data_train:  
     train_data = np.append(train_data, value)
+train_data = train_data.astype(float)
 
 test_data = []
 for value in sliding_data_test:  
     test_data = np.append(test_data, value)
+test_data = test_data.astype(float)
+
+# trend of data
+trend_train = []
+for i in range(int(train_data.shape[0]/7)):
+    trend_train = np.append(trend_train, (train_data[(7*i+1):7*(i+1)] - train_data[7*i:7*(i+1)-1]))
+
+trend_test = []
+for i in range(int(test_data.shape[0]/7)):
+    trend_test = np.append(trend_test, (test_data[(7*i+1):7*(i+1)] - test_data[7*i:7*(i+1)-1]))
+
 
 # dataloader for neural network training
-train_data = train_data.astype(float)
-trainloader = DataLoader(train_data, batch_size=args.batch_size_train + 1, shuffle=False)
+trainloader = DataLoader(trend_train, batch_size=args.batch_size_train+1, shuffle=False)
+testloader = DataLoader(trend_test, batch_size=args.batch_size_train+1, shuffle=False)
 
-test_data = test_data.astype(float)
-testloader = DataLoader(test_data, batch_size=args.batch_size_train + 1, shuffle=False)
+
 
 # ----------------------------------------------
 # main code
@@ -82,7 +94,7 @@ cnn = cnn.to(device)
 print(cnn)
 
 # initialize alpha as an array of 1
-alpha = torch.ones(args.window_size - 1)
+alpha = torch.ones(args.window_size-1)
 error_train = []
 error_test = []
 
@@ -147,6 +159,8 @@ for i in range(args.num_iteration):
 
 
 
+
+'''
 # Analyze the consistant difference of y-output
 output_list = [[] for batch_idx,_ in enumerate(testloader)]
 ACF_list = [[] for batch_idx,_ in enumerate(testloader)]
@@ -216,7 +230,10 @@ plt.xticks(np.arange(0, 20, step=1))
 plt.grid(True)
 plt.show()
 
-'''
+
+
+
+
 
 #--------------------------------
 # create multiple time series
@@ -277,3 +294,4 @@ plt.plot(CCF)
 plt.title('cross covariance CCF with lag=1')
 
 '''
+
